@@ -15,11 +15,11 @@ if sysbench.cmdline.command == nil then
 end
 
 sysbench.cmdline.options = {
-    point_selects = {"Number of point SELECT queries to run", 5},
     skip_trx = {"Do not use BEGIN/COMMIT; Use global auto_commit value", false},
     start_date = {"start of random date range", "2019-01-01 00:00:00"},
     end_date = {"end of random date range", "2020-01-01 00:00:00"},
-    read_pct = {"percentage of read events", 60}
+    read_pct = {"percentage of read events", 60},
+    select_range = {"number of days in select range", 14}
 }
 
 local pl = require 'pl.import_into'()
@@ -223,7 +223,7 @@ function generate_random_date_days(start, days)
 end
 
 function generate_random_date(s)
-	--local start = date(pl.tablex.deepcopy(sysbench.opt.start_date))
+    --local start = date(pl.tablex.deepcopy(sysbench.opt.start_date))
     local start = date(sysbench.cmdline.options.start_date[2])
     --local rd1 = start:addseconds(math.random(s))
     local rd1 = start:addseconds(sysbench.rand.uniform(1,s))
@@ -241,10 +241,11 @@ function execute_selects(START,SECRANGE)
     
     local region
     local d1, d2
+    local days = sysbench.cmdline.options.select_range
 
     for i, o in ipairs(select_counts3) do
         --print(string.format("before dates start: %s s: %s type: %s", START, SECRANGE ,type(SECRANGE)))
-        d1, d2 = generate_random_date_pair(START, SECRANGE)
+        d1, d2 = generate_random_date_pair(START, SECRANGE, days)
         --print(string.format("after dates start: %s s: %s type: %s d1: %s d2: %s", start, SECRANGE ,type(SECRANGE), d1, d2))
         --print(string.format('In for loop: start %s s: %s %s', START, SECRANGE, type(SECRANGE)))
         region = regions[math.random(#regions)]
