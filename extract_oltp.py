@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Usage:
   extract_oltp [--csv] <file_name>...

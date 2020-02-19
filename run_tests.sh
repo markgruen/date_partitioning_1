@@ -27,11 +27,11 @@ sleep 60
 }
 
 if [[ "$first" == "innodb" ]]; then
-innodb
-./big_change_engine.sh tokudb
-tokudb
+    innodb
+    ./big_change_engine.sh tokudb
+    tokudb
 else
-tokudb
-./big_change_engine.sh innodb
-innodb
+    tokudb
+    ./big_change_engine.sh innodb
+    innodb
 fi

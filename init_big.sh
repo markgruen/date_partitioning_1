@@ -1,3 +1,5 @@
+data_path=/home/mgruen
+
 function check_table
 {
 local table_name=$1
@@ -39,7 +41,7 @@ PARTITION p03_2020 VALUES LESS THAN (737881) ENGINE = innodb,
 PARTITION pMAX VALUES LESS THAN MAXVALUE ENGINE = innodb)
 ;
 load data local infile 
-'/home/mgruen//partition_test_data.csv'
+'$data_path/partition_test_data.csv'
 into table test.big
 FIELDS TERMINATED BY ',' ENCLOSED BY '\"'
 LINES TERMINATED BY '\r\n'

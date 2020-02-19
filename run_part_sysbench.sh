@@ -17,12 +17,18 @@ fi
 #    engine="_${engine}"
 #fi
 
-# test_out_ro_toku_3
-out_file="test_out_${ro}_${engine}_${threads}"
+out_file=${4:-"test_out_${ro}_${engine}_${threads}"}
 write_pct=$(( 100-$read_pct ))
 test_iterations=3
 run_time=300
 wait_time=60
+
+if [[ -z "$4" ]]; then
+    TEE="tee"
+else
+    TEE="tee -a"
+fi
+    
 
 (
 echo "show create table big;" | ./use test
@@ -33,6 +39,7 @@ do
     echo "READ/WRITE: ${read_pct}:${write_pct}"
     echo "PARTITIONED: YES"
     echo "COMPRESSED: NO"
+    echo "ENGINE: $engine"
     date '+START: %Y-%m-%d %H:%M:%S'
 
     sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=5728 --mysql-host=127.0.0.1 --mysql-db=test --time=$run_time --report-interval=5 \
@@ -55,6 +62,7 @@ do
     echo "READ%: $read_pct"
     echo "PARTITIONED: NO"
     echo "COMPRESSED: NO"
+    echo "ENGINE: $engine"
     date '+START: %Y-%m-%d %H:%M:%S'
 
     sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=5728 --mysql-host=127.0.0.1 --mysql-db=test --time=$run_time --report-interval=5 \
@@ -78,6 +86,7 @@ if [[ "$engine" == "innodb" ]]; then
         echo "READ%: $read_pct"
         echo "PARTITIONED: YES"
         echo "COMPRESSED: YES"
+        echo "ENGINE: $engine"
         date '+START: %Y-%m-%d %H:%M:%S'
 
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=5728 --mysql-host=127.0.0.1 --mysql-db=test --time=$run_time --report-interval=5 \
@@ -100,6 +109,7 @@ if [[ "$engine" == "innodb" ]]; then
         echo "READ%: $read_pct"
         echo "PARTITIONED: NO"
         echo "COMPRESSED: YES"
+        echo "ENGINE: $engine"
         date '+START: %Y-%m-%d %H:%M:%S'
 
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=5728 --mysql-host=127.0.0.1 --mysql-db=test --time=$run_time --report-interval=5 \

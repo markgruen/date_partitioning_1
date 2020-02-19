@@ -19,10 +19,13 @@ _version = '0.1'
 
 
 def get_file_parts(thefile):
-    fparts = thefile.split('_')
-    threads = fparts[-1]
-    engine = fparts[3]
-    rw = fparts[2]
+    try:
+        fparts = thefile.split('_')
+        threads = fparts[-1]
+        engine = fparts[3]
+        rw = fparts[2]
+    except IndexError:
+        threads, engine, rw = None, None, None
     return threads, engine, rw
 
 
@@ -56,10 +59,14 @@ def get_sysbench_chunk(filename):
     chunk = []
     part = ''
     comp = ''
+    threads = ''
+    engine = ''
     start = True
     pbreak = re.compile(r'^########### ')
     ppartition = re.compile(r'PARTITIONED: ')
     pcompress = re.compile(r'COMPRESSED: ')
+    pengine = re.compile(r'ENGINE: ')
+    pthreads = re.compile(r'THREAD: ')
     with open(filename, 'r') as file:
         for n,line in enumerate(file):
             if pbreak.match(line):
@@ -67,7 +74,7 @@ def get_sysbench_chunk(filename):
                     start = False
                     chunk.append(line.strip())
                 else:
-                    yield chunk, part, comp
+                    yield chunk, part, comp, threads, engine
                     chunk = []
                     chunk.append(line.strip())
             else:
@@ -76,12 +83,16 @@ def get_sysbench_chunk(filename):
                     part = line.split(':')[1].strip()
                 if pcompress.match(line):
                     comp = line.split(':')[1].strip()
+                if pthreads.match(line):
+                    threads = line.split(':')[1].strip()
+                if pengine.match(line):
+                    engine = line.split(':')[1].strip()
 
 
 def split_sysbench_output(filename, thedate):
     #sh.rm("-f", f'sysbenchout_{thedate}_{engine}_{part}{comp}_{rw}_{threads}_00')
-    threads, engine, rw = get_file_parts(filename)
-    for i, (chunk, part, comp) in enumerate(get_sysbench_chunk(filename)):
+    #threads, engine, rw = get_file_parts(filename)
+    for i, (chunk, part, comp, threads, engine) in enumerate(get_sysbench_chunk(filename)):
         partition = 'partition' if part == 'YES' else 'non-partition'
         compress = '_compress' if comp == 'YES' else ''
         out_file = f'sysbenchout_{thedate}_{engine}_{partition}{compress}_{rw}_{threads}_{i:02}'
