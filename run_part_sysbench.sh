@@ -19,16 +19,21 @@ fi
 
 out_file=${4:-"test_out_${ro}_${engine}_${threads}"}
 write_pct=$(( 100-$read_pct ))
-test_iterations=3
-run_time=300
-wait_time=60
+test_iterations=1
+run_time=10
+wait_time=1
 
 if [[ -z "$4" ]]; then
     TEE="tee"
 else
     TEE="tee -a"
 fi
-    
+
+#if [[ "$engine" == "tokudb" ]]; then
+#    compress="YES"
+#else
+#    compress="NO"
+#fi
 
 (
 echo "show create table big;" | ./use test
@@ -59,7 +64,7 @@ for i in $(seq 1 $test_iterations)
 do
     echo "########### NON PARTITION RW ${read_pct} ${write_pct}"
     echo "THREAD: $threads"
-    echo "READ%: $read_pct"
+    echo "READ/WRITE: ${read_pct}:${write_pct}"
     echo "PARTITIONED: NO"
     echo "COMPRESSED: NO"
     echo "ENGINE: $engine"
@@ -83,7 +88,7 @@ if [[ "$engine" == "innodb" ]]; then
     do
         echo "########### PARTITION COMPRESSED RW ${read_pct} ${write_pct}"
         echo "THREAD: $threads"
-        echo "READ%: $read_pct"
+        echo "READ/WRITE: ${read_pct}:${write_pct}"
         echo "PARTITIONED: YES"
         echo "COMPRESSED: YES"
         echo "ENGINE: $engine"
@@ -106,7 +111,7 @@ if [[ "$engine" == "innodb" ]]; then
     do
         echo "########### NON PARTITION COMPRESSED RW ${read_pct} ${write_pct}"
         echo "THREAD: $threads"
-        echo "READ%: $read_pct"
+        echo "READ/WRITE: ${read_pct}:${write_pct}"
         echo "PARTITIONED: NO"
         echo "COMPRESSED: YES"
         echo "ENGINE: $engine"
@@ -127,4 +132,4 @@ else
     echo "RESETTING BIG TO PARTITIONED"
     echo "rename table big to _big_nonpart, _big_part to big;" | ./use -vvv test
 fi
-) | tee $out_file
+) | $TEE $out_file
