@@ -1,29 +1,31 @@
 first=${1:-"innodb"}
+outfile=${2:-""}
+sleep_time=${3:-60}
 
 function innodb
 {
 echo "----------- INNODB --------------"
-./run_part_sysbench.sh 1 60 innodb
-sleep 60
-./run_part_sysbench.sh 3 60 innodb
-sleep 60
-./run_part_sysbench.sh 1 100 innodb
-sleep 60
-./run_part_sysbench.sh 3 100 innodb
-sleep 60
+./run_part_sysbench.sh 1 60 innodb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 3 60 innodb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 1 100 innodb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 3 100 innodb "$outfile"
+sleep "$sleep_time"
 }
 
 function tokudb
 {
 echo "----------- TOKUDB --------------"
-./run_part_sysbench.sh 1 60 tokudb
-sleep 60
-./run_part_sysbench.sh 3 60 tokudb
-sleep 60
-./run_part_sysbench.sh 1 100 tokudb
-sleep 60
-./run_part_sysbench.sh 3 100 tokudb
-sleep 60
+./run_part_sysbench.sh 1 60 tokudb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 3 60 tokudb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 1 100 tokudb "$outfile"
+sleep "$sleep_time"
+./run_part_sysbench.sh 3 100 tokudb "$outfile"
+sleep "$sleep_time"
 }
 
 if [[ "$first" == "innodb" ]]; then
