@@ -51,7 +51,7 @@ def extract(file_names, csv):
                           'max: *(\d\d*\.\d\d*)ms|'
                           'approx\.  95 percentile: *([0-9][0-9]*\.\d\d*)ms$')
 
-    exp_v10 = re.compile( '^Number of threads: (\d\d*)|'
+    exp_v10 = re.compile(r'^Number of threads: (\d\d*)|'
                           '.*read: *(\d\d*)|'
                           '.*write: *(\d\d*)|'
                           '.*other: *(\d\d*)|'
@@ -68,11 +68,16 @@ def extract(file_names, csv):
                           '.*min: *(\d\d*\.\d\d*)|'
                           '.*avg: *(\d\d*\.\d\d*)|'
                           '.*max: *(\d\d*\.\d\d*)|'
-                          '.*95th percentile: *([0-9][0-9]*\.\d\d*)$')
+                          '.*95th percentile: *([0-9][0-9]*\.\d\d*)$|'
+                          '^READ/WRITE: (\d\d*):(\d\d*)|'
+                          '^PARTITIONED: (\w\w*)|'
+                          '^COMPRESSED: (\w\w*)|'
+                          '^ENGINE: (\w\w*)')
     if sysbench_version == '1.0':
         exp = exp_v10
 
-    header1 = ('Queries', 'Transactions', 'General Statisics', 'Response Time')
+    filename_index = 27
+    header1 = ('Queries', 'Transactions', 'General Statisics', 'Response Time', 'Run Data')
     header = ('Threads',
               'reads', 'writes', 'other', 'total',
               'trans', 'trans/sec',
@@ -80,11 +85,12 @@ def extract(file_names, csv):
               'other_ops', 'other_ops/s',
               'ignored_errs', 'ignored_errs/s',
               'reconnects', 'reconnects/s',
-              'tot_time', '#events', 'tot_time_for_events', 'min', 'avg', 'max', '95_%', 'filename')
+              'tot_time', '#events', 'tot_time_for_events', 'min', 'avg', 'max', '95_%',
+              'read%','write%','partitioned','compressed','engine','filename')
     #print('File: {}'.format(file_name))
     print('')
     if not csv:
-        print('{:40s} {:108s} {:36s} {}'.format(*header1))
+        print('{:40s} {:108s} {:36s} {:31s} {}'.format(*header1))
         print('{:7s} '
               '{:9s} {:6s} {:7s} {:7s} '
               '{:6s} {:9s} ' #trans
@@ -92,16 +98,16 @@ def extract(file_names, csv):
               '{:9s} {:11s} ' #other
               '{:12s} {:14} ' #ignored errors
               '{:10s} {:12s} ' #reconnects
-              '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} {}'.format(*header))
+              '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
+              '{:5s} {:6s} {:12s} {:10s} {:6s} '
+              '{}'.format(*header))
     else:
-        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
-    #values = [None]*22
-    values = [None]*23
+        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
+    values = [None]*29
     for file_name in file_names:
-        values[22] = file_name
+        values[filename_index] = file_name
         with open(file_name, 'r') as f:
             for l, line in enumerate(f):
-            #for l, line in enumerate(get_next_dataline(f)):
                 #print(l,line)
                 try:
                     #m = re.search('[1-9][0-9\.]*Mb\/sec', line)
@@ -120,9 +126,9 @@ def extract(file_names, csv):
                         i = list(map(bool, m)).index(True)
                         if i == 0:
                             #print(line)
-                            values = [None]*23
+                            values = [None]*29
                             values[0] = m[0]
-                            values[22] = file_name
+                            values[filename_index] = file_name
                         else:
                             #values[i] = m[i]
                             for j in i_m:
@@ -133,7 +139,7 @@ def extract(file_names, csv):
                         #print('m:      {}'.format(m))
                         #if len([e for e in values if e is not None]) == 22:
                         #print(f'LEN: {len([e for e in values if e is not None])}')
-                        if len([e for e in values if e is not None]) == 18:
+                        if len([e for e in values if e is not None]) == 18+5:
                             #print(f'LEN VALUES {len(values)}')
                             if not csv:
                                 print('{:7s} '
@@ -143,9 +149,12 @@ def extract(file_names, csv):
                                       '{:9s} {:11s} ' #other
                                       '{:12s} {:14} ' #ignored errors
                                       '{:10s} {:12s} ' #reconnects
-                                      '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} {}'.format(*['' if e is None else e for e in values]))
+                                      '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
+                                      '{:5s} {:6s} {:12s} {:10s} {:6s} '
+                                      '{}'.format(*['' if e is None else e for e in values]))
                             else:
-                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*['' if e is None else e for e in values]))
+                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
+                                      .format(*['' if e is None else e for e in values]))
                         else:
                             if debug:
                                 print('{:7s} '
