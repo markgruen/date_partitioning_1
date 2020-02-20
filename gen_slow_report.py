@@ -18,55 +18,18 @@ from dateutil import tz
 _version = '0.1'
 
 
-def get_file_parts(thefile):
-    try:
-        fparts = thefile.split('_')
-        threads = fparts[-1]
-        engine = fparts[3]
-        rw = fparts[2]
-    except IndexError:
-        threads, engine, rw = None, None, None
-    return threads, engine, rw
-
-
-def split_sysbench_out0(thefile, thedate, **kwargs):
-    """
-    csplit -k -f sysbenchout_1_$(date '+%F_%T') test_out_1 --suffix-format='innodb__%02d' '/^###########/' '{*}'
-    """
-
-    # out_file = f'slow_{thedate}_{engine}_{part}{comp}_{rw}_{threads}_{i}'
-
-    threads, engine, rw = get_file_parts(thefile)
-    try:
-        part = kwargs["part"]
-        comp = kwargs["comp"]
-    except KeyError as e:
-        print(f'Error {e}')
-        print(f'kwargs: {kwargs}')
-
-    # csplit -k -f sysbenchout_1_$(date '+%F_%T') test_out_1 --suffix-format='innodb__%02d' '/^###########/' '{*}'
-    sh.csplit("-k",
-             #f"-fsysbenchout_{threads}_{thedate}",
-             f"-fsysbenchout_{thedate}",
-             thefile,
-             f"--suffix-format=_{engine}_{part}{comp}_{rw}_{threads}_%02d",
-             "/^###########/",
-             "{*}")
-    sh.rm("-f", f'sysbenchout_{thedate}_{engine}_{part}{comp}_{rw}_{threads}_00')
-
-
 def get_sysbench_chunk(filename):
     chunk = []
-    part = ''
-    comp = ''
-    threads = ''
-    engine = ''
+    part, comp, threads, engine, rw, starttime, endtime = '', '', '', '', '', '', ''
     start = True
     pbreak = re.compile(r'^########### ')
     ppartition = re.compile(r'PARTITIONED: ')
     pcompress = re.compile(r'COMPRESSED: ')
     pengine = re.compile(r'ENGINE: ')
     pthreads = re.compile(r'THREAD: ')
+    pstart = re.compile(r'START: ')
+    pend = re.compile(r'END: ')
+    prw = re.compile(r'READ/WRITE: ')
     with open(filename, 'r') as file:
         for n,line in enumerate(file):
             if pbreak.match(line):
@@ -74,92 +37,73 @@ def get_sysbench_chunk(filename):
                     start = False
                     chunk.append(line.strip())
                 else:
-                    yield chunk, part, comp, threads, engine
+                    yield chunk, part, comp, threads, engine, rw, starttime, endtime
                     chunk = []
                     chunk.append(line.strip())
             else:
                 chunk.append(line.strip())
                 if ppartition.match(line):
                     part = line.split(':')[1].strip()
+                    part = 'partition' if part == 'YES' else 'non-partition'
                 if pcompress.match(line):
                     comp = line.split(':')[1].strip()
+                    comp = 'compress' if comp == 'YES' else ''
                 if pthreads.match(line):
                     threads = line.split(':')[1].strip()
                 if pengine.match(line):
                     engine = line.split(':')[1].strip()
+                if pstart.match(line):
+                    starttime = ':'.join(line.split(':')[-3:]).strip()
+                if pend.match(line):
+                    endtime = ':'.join(line.split(':')[-3:]).strip()
+                if prw.match(line):
+                    rw = line.split(':')[1].strip()
+                    rw = 'ro' if rw=='100' else 'rw'
+        else:
+            yield chunk, part, comp, threads, engine, rw, starttime, endtime
+
 
 
 def split_sysbench_output(filename, thedate):
-    #sh.rm("-f", f'sysbenchout_{thedate}_{engine}_{part}{comp}_{rw}_{threads}_00')
-    #threads, engine, rw = get_file_parts(filename)
-    for i, (chunk, part, comp, threads, engine) in enumerate(get_sysbench_chunk(filename)):
-        partition = 'partition' if part == 'YES' else 'non-partition'
-        compress = '_compress' if comp == 'YES' else ''
+    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
+        #partition = 'partition' if part == 'YES' else 'non-partition'
+        #compress = '_compress' if comp == 'compress' else ''
+        compress = '_compress' if compress == 'compress' else ''
         out_file = f'sysbenchout_{thedate}_{engine}_{partition}{compress}_{rw}_{threads}_{i:02}'
         with open(out_file, 'w') as f:
             f.write('\n'.join(chunk))
+        print(i,chunk[0], out_file)
 
 
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-    a, b = itertools.tee(iterable)
-    next(b, None)
-    return zip(a, b)
+def list_times(filename, gmt):
+    """ here we can generate the url links to PPM """
+    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
+        if gmt:
+            start_gmt = arrow.get(starttime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
+            end_gmt = arrow.get(endtime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
+            print(f'{starttime} {endtime} ->  {start_gmt} {end_gmt}')
+        else:
+            print(f'{starttime} {endtime}')
 
 
-def get_metadata(thefile):
-    part = sh.grep("-E", "^PARTITIONED:", thefile)
-    comp = sh.grep("-E", "^COMPRESSED:", thefile)
-    partitioned = ['YES' in p.split(':')[1] for p in part.splitlines()]
-    compressed = ['YES' in p.split(':')[1] for p in comp.splitlines()]
-    return partitioned, compressed
-
-
-def create_slowreport(thefile, thedate, gmt, logfile):
-    out_file = '{prefix}slow_{part}_{n}'
+def create_slowreport(filename, thedate, gmt, logfile):
     querydigest = sh.Command("pt-query-digest")
 
-    #start = True
     d = [None, None]
-    #n = 1
 
-    threads, engine, rw = get_file_parts(thefile)
-
-    print('Extracting the START and END dates from the sysbench loads to generate slow log reports')
-    times = sh.grep("-E", "START:|END:", thefile)
-    times = [l.split(': ')[1] for l in times.splitlines()]
-    #print(times)
-    for i,d in enumerate(zip(times[::2], times[1::2])):
-        print(i,d)
-    #sys.exit(0)
-    print('')
-
-    parts, comps= get_metadata(thefile)
-
-    #for i,d in enumerate(pairwise(times)):
-    for i,((d),(partitioned, compressed)) in enumerate(zip(zip(times[::2], times[1::2]), zip(parts, comps))):
-        #print(d)
-        if partitioned:
-            part = 'partition'
-        else:
-            part = 'non-partition'
-        if compressed:
-            comp = '_compressed'
-        else:
-            comp = ''
-
-        file_parts = {'part': part, 'comp': comp, 'threads': threads, 'engine': engine, 'rw': rw}
+    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
 
         #slow_2020-02-04_19-49-06_tokudb_ro_3_03
         #tokudb_ro_3_slow_non_partition_5
 
-        out_file = f'slow_{thedate}_{engine}_{part}{comp}_{rw}_{threads}_{i}'
+        compress = '_compress' if compress=='compress' else ''
+        out_file = f'slow_{thedate}_{engine}_{partition}{compress}_{rw}_{threads}_{i}'
 
         if gmt:
-            dd = [arrow.get(t, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss') for t in d]
+            dd = [arrow.get(t, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss') for t in [starttime, endtime]]
             print(f'Processing the slow query logs from {d[0]} to {d[1]} converting to GMT {dd[0]}:{dd[1]} saving to {out_file}')
         else:
-            dd = d
+            dd = [starttime, endtime]
             print(f'Processing the slow query logs from {dd[0]} to {dd[1]} saving to {out_file}')
 
         querydigest(logfile,
@@ -169,19 +113,19 @@ def create_slowreport(thefile, thedate, gmt, logfile):
                         filter="""($event->{user} || \"\") =~ m/msandbox/""",
                         _out=out_file)
 
-        #print(i, thefile, file_parts)
-        #split_sysbench_out(thefile, thedate, **file_parts)
-
-        
 
 def main(filenames, thedate, gmt, logfile='/home/mgruen/sandboxes/msb_toku5_7_28/data//mysqlsandbox1-slow.log'):
-    for filename in filenames:
-        print(f'spliting sysbench out files for {filename}')
-        #split_sysbench_output(filename, thedate)
+    #for filename in filenames:
+    #    print(f'Listing times if benchamrk runs in file {filename}')
+    #    list_times(filename, gmt)
 
     for filename in filenames:
-        print(f'proncessing file: {filename}')
-        create_slowreport(filename, thedate, gmt, logfile) 
+        print(f'spliting sysbench out files for {filename}')
+        split_sysbench_output(filename, thedate)
+
+    #for filename in filenames:
+    #    print(f'proncessing file: {filename}')
+    #    create_slowreport(filename, thedate, gmt, logfile)
 
 
 if __name__ == '__main__':
