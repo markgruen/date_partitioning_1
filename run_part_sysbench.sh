@@ -19,9 +19,9 @@ fi
 
 out_file=${4:-"test_out_${ro}_${engine}_${threads}"}
 write_pct=$(( 100-$read_pct ))
-test_iterations=1
-run_time=10
-wait_time=1
+test_iterations=3
+run_time=300
+wait_time=60
 
 if [[ -z "$4" ]]; then
     TEE="tee"

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Usage: gen_slow_report [--gmt --logfile=LOGFILE] <file>...
+"""Usage: gen_slow_report [--gmt --slowlogfile=LOGFILE] <file>...
 
 Options:
   -h --help          Show this screen.
   --gmt              Convert test run times to gmt to extract slow logs
-  --logfile=LOGFILE  optional logfile
+  --slowlogfile=LOGFILE  slow logfile [default: ./data/mysqlsandbox1-slow.log]
 """
 import sh
 import itertools
@@ -100,6 +100,7 @@ def create_slowreport(filename, thedate, gmt, logfile):
         out_file = f'slow_{thedate}_{engine}_{partition}{compress}_{rw}_{threads}_{i}'
 
         if gmt:
+            d = [starttime, endtime]
             dd = [arrow.get(t, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss') for t in [starttime, endtime]]
             print(f'Processing the slow query logs from {d[0]} to {d[1]} converting to GMT {dd[0]}:{dd[1]} saving to {out_file}')
         else:
@@ -114,18 +115,18 @@ def create_slowreport(filename, thedate, gmt, logfile):
                         _out=out_file)
 
 
-def main(filenames, thedate, gmt, logfile='/home/mgruen/sandboxes/msb_toku5_7_28/data//mysqlsandbox1-slow.log'):
-    #for filename in filenames:
-    #    print(f'Listing times if benchamrk runs in file {filename}')
-    #    list_times(filename, gmt)
+def main(filenames, thedate, gmt, logfile):
+    for filename in filenames:
+        print(f'Listing times if benchamrk runs in file {filename}')
+        list_times(filename, gmt)
 
     for filename in filenames:
         print(f'spliting sysbench out files for {filename}')
         split_sysbench_output(filename, thedate)
 
-    #for filename in filenames:
-    #    print(f'proncessing file: {filename}')
-    #    create_slowreport(filename, thedate, gmt, logfile)
+    for filename in filenames:
+        print(f'proncessing file: {filename} using slowlog path {logfile}')
+        create_slowreport(filename, thedate, gmt, logfile)
 
 
 if __name__ == '__main__':
@@ -133,4 +134,4 @@ if __name__ == '__main__':
     thedate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     print(args)
     #sys.exit(0)
-    main(args['<file>'], thedate, args['--gmt'], args['--logfile'])
+    main(args['<file>'], thedate, args['--gmt'], args['--slowlogfile'])

@@ -1,6 +1,9 @@
+now=$(date +"%Y%m%d_%H:%M:%S")
 first=${1:-"innodb"}
-outfile=${2:-""}
-sleep_time=${3:-60}
+#outfile=${2:-""}
+sleep_time=${2:-60}
+
+outfile="testout_$now"
 
 function innodb
 {
