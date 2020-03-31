@@ -19,7 +19,10 @@ sysbench.cmdline.options = {
     start_date = {"start of random date range", "2019-01-01 00:00:00"},
     end_date = {"end of random date range", "2020-01-01 00:00:00"},
     read_pct = {"percentage of read events", 60},
-    select_range = {"number of days in select range", 14}
+    select_range = {"number of days in select range", 14},
+    point_select_id = {"point select by id percent 0-100", 0},
+    point_select_date = {"point select by date, percent 0-100", 0},
+    point_update_id = {"point update by id, percent 0-100", 30}
 }
 
 local pl = require 'pl.import_into'()
@@ -152,14 +155,14 @@ print_table(DATA)
 
 -- d1
 local select_counts1 = {
-    "select count(*) from test.big where add_date > %s",
-    "select count(*) from test.big where add_date < %s"
+    "select count(*) from big where add_date > %s",
+    "select count(*) from big where add_date < %s"
 }
 
 -- region d1
 local select_counts2 = {
-    "select count(*) from test.big where region='%s' and add_date > %s",
-    "select count(*) from test.big where region='%s' and add_date < %s"
+    "select count(*) from big where region='%s' and add_date > %s",
+    "select count(*) from big where region='%s' and add_date < %s"
 
 }
 
@@ -170,7 +173,7 @@ local select_counts3 = {
 
 -- d1 d2
 local select_counts4 = {
-    "select count(*) from test.big where add_date between '%s' and '%s'"
+    "select count(*) from big where add_date between '%s' and '%s'"
 }
 
 
@@ -182,6 +185,7 @@ local inserts = {
 local updates = {
     "update big set i=if(i is null, 1, i+1) where id=%d"
     }
+
 
 function _deepcopy(o, tables)
  
@@ -210,11 +214,8 @@ function deepcopy(o)
 end
 
 function generate_random_date_days(start, days)
-	--local start = date(pl.tablex.deepcopy(sysbench.opt.start_date))
-    --local start = date(sysbench.cmdline.options.start_date[2])
     start = date(start)
     --print(string.format('In days start: %s %s days: %d', start, type(start), days))
-    --local rd1 = start:addseconds(math.random(days*3600*24))
     local rd1 = start:addseconds(sysbench.rand.uniform(1,days*3600*24))
     if rd1 > END then
         rd1 = END
@@ -223,9 +224,7 @@ function generate_random_date_days(start, days)
 end
 
 function generate_random_date(s)
-    --local start = date(pl.tablex.deepcopy(sysbench.opt.start_date))
     local start = date(sysbench.cmdline.options.start_date[2])
-    --local rd1 = start:addseconds(math.random(s))
     local rd1 = start:addseconds(sysbench.rand.uniform(1,s))
     return rd1:fmt('%Y-%m-%d %H:%M:%S')
 end
@@ -237,26 +236,39 @@ function generate_random_date_pair(START, S, days)
     return rd1, rd2
 end
 
-function execute_selects(START,SECRANGE)
+
+function execute_selects(START, SECRANGE)
     
     local region
     local d1, d2
     local days = sysbench.cmdline.options.select_range
 
-    for i, o in ipairs(select_counts3) do
+    for i, sql in ipairs(select_counts3) do
         --print(string.format("before dates start: %s s: %s type: %s", START, SECRANGE ,type(SECRANGE)))
         d1, d2 = generate_random_date_pair(START, SECRANGE, days)
         --print(string.format("after dates start: %s s: %s type: %s d1: %s d2: %s", start, SECRANGE ,type(SECRANGE), d1, d2))
         --print(string.format('In for loop: start %s s: %s %s', START, SECRANGE, type(SECRANGE)))
         region = regions[math.random(#regions)]
         --print(string.format('d1: %s d2: %s', d1, d2))
-        con:query(string.format(o, region, d1, d2))
+        --con:query(string.format(sql, region, d1, d2))
+        db_query(string.format(sql, region, d1, d2))
     end
 
 end
 
 
-function execute_inserts(START,SECRANGE)
+function execute_point_id_select()
+    db_query("select count(*) from big where id=".. sb_rand(1, max_id))
+end
+
+
+function execute_point_id_update()
+    --print(max_id)
+    db_query("update big set i=" .. sb_rand(1, 300000) .. " where id=" ..  sb_rand(1, max_id))
+end
+
+
+function execute_inserts(START, SECRANGE)
     --local region = regions[math.random(#regions)] 
     local region = regions[sysbench.rand.uniform(1,#regions)] 
     --print(string.format('START: %s S: %di region: %s', START, SECRANGE, region))
@@ -268,12 +280,21 @@ function execute_updates()
     con:query(string.format(updates[1], sysbench.rand.special(2, 10000000)))
 end
 
+local function get_max_id()
+    sql = "select max(id) from big"
+    rs = con:query("select max(id) from big")
+    --print(rs.nrows[0])
+    row = rs:fetch_row()
+    return tonumber(row[1])
+end
+
 -- Called by sysbench to initialize script
 function thread_init()
 
     -- globals for script
     drv = sysbench.sql.driver()
     con = drv:connect()
+    max_id = get_max_id()
 end
 
 
@@ -296,23 +317,34 @@ function event()
 
     local SECRANGE = DATA.secrange
     local START = date(sysbench.cmdline.options.start_date[2])
-    local k = sysbench.rand.uniform(1,100)
-    local l = sysbench.rand.uniform(1,2)
     local read_pct = sysbench.opt.read_pct
+    local point_select_pct = sysbench.opt.point_select_id
+    local point_update_pct = sysbench.opt.point_update_id
+    local k = sysbench.rand.uniform(1,100)
+    local l = sysbench.rand.uniform(1,100)
+    local m = sysbench.rand.uniform(1,100)
 
     --print(string.format('event start: %s opt: %s', START, sysbench.opt.start_date))
     --print(string.format('event SECRANGE: %s', SECRANGE))
     --print(string.format('read %d', read_pct))
 
-    --local d1, d2
-    --print(string.format('k: %d l: %d', k, l))
-    --if k <= sysbench.opt.read_pct then
     if k <= read_pct then
-        execute_selects(START,SECRANGE)
+        --print('READ')
+        if l <= point_select_pct then
+            --print('POINT')
+            execute_point_id_select()
+        else
+            --print('RANGE')
+            execute_selects(START,SECRANGE)
+        end
     else
-        --if k <=2 then
+        --print('WRITE')
+        if m <= point_update_pct then
+            execute_point_id_update()
+        else
             execute_inserts(START,SECRANGE)
-        --end
+        end
+            
     end
     --execute_updates()
 
