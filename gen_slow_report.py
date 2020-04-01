@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Usage: gen_slow_report [--gmt --slowlogfile=LOGFILE --gen-url=BASEURL --list-times] <benchmark_outfiles>...
+"""Usage:
+    gen_slow_report [--gmt --slowlogfile=LOGFILE --gen-url=BASEURL --list-times] <benchmark_outfiles>...
 
 Arguments:
-    benchmark_outfile  list of output files from run_tests.
+    benchmark_outfile  list of output files from run_tests.sh
 
 Options:
-  -h --help          Show this screen.
-  --gmt              Convert test run times to gmt to extract slow logs
+  -h --help              Show this screen.
+  --gmt                  Convert test run times to gmt to extract slow logs using pt-query-digest
   --slowlogfile=LOGFILE  slow logfile [default: ./data/mysqlsandbox1-slow.log]
   --gen-urls=BASEURL     Create URLS for timespans of testing to compare in PMM
-  --list-times       List times and exit
+  --list-times           List times and exit
+
+Example:
+    gen_slow_report --gmt --list-times testout_20200223_09:27:45
+    gen_slow_report --gmt --gen-url=192.168.101.42 --list-times testout_20200223_09:27:45
 
 """
 from typing import List, Any, Tuple, Union
@@ -108,41 +113,55 @@ def build_timewindow(outlist, base_url):
         if base_url:
             print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from={int(d['start_x'])*1000-sec}&to={int(d['end_y'])*1000+15*sec}")
 
-    top = dfout.groupby(['engine','threads','rw']).head(1).reset_index()
-    bottom = dfout.groupby(['engine','threads','rw']).tail(1).reset_index()
-
-    window = pd.merge(top, bottom, how='inner', on=['engine','threads','rw']) \
-        [['starttime_x', 'endtime_y', 'start_x', 'end_y', 'engine','threads','rw']]
 
     print('\n\n')
-    print('Links to PMM by engine and Read/Write:')
-    for i, d in window.iterrows():
-        print(f"{d['engine']} {d['threads']} {d['rw']}")
-        if base_url:
-            print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from={int(d['start_x'])*1000-sec}&to={int(d['end_y'])*1000+45*sec}")
+    print('Links to PMM by engine and threads:')
 
-
-    print('\n\n')
-    print('Links to PMM by engine showing all tests in a single plot:')
-    top = dfout.groupby(['engine']).head(1).reset_index()
-    bottom = dfout.groupby(['engine']).tail(1).reset_index()
-    window = pd.merge(top, bottom, how='inner', on=['engine']) \
+    top = dfout.groupby(['engine', 'threads']).head(1).reset_index()
+    bottom = dfout.groupby(['engine', 'threads']).tail(1).reset_index()
+    window = pd.merge(top, bottom, how='inner', on=['engine', 'threads']) \
         [['starttime_x', 'endtime_y', 'start_x', 'end_y', 'engine']]
+    group_details = dfout.groupby(['engine', 'threads'], sort=False)
 
-    gdetails = (dfout.groupby(['engine', 'partition', 'compress', 'threads', 'rw'], sort=False)
-         [['engine', 'partition', 'compress', 'threads', 'rw']].size()
-         .reset_index(name='counts'))
-    header = [c.upper() for c in gdetails.columns]
-
-    for i, d in window.iterrows():
+    for (i, d), (name, group) in zip(window.iterrows(), group_details):
         print(f"{d['engine']}")
         if base_url:
-            print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from={int(d['start_x'])*1000-sec}&to={int(d['end_y'])*1000+55*sec}")
+            print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from="
+                  f"{int(d['start_x']) * 1000 - sec}&to={int(d['end_y']) * 1000 + 60 * sec}\n")
+        gcolumns = [c for c in group.columns.tolist() if c not in ['start', 'end', 'starttime', 'endtime']]
+        g = group.groupby(gcolumns, sort=False, as_index=False).count()
 
-    print('\nTest details')
-    print(tabulate(
-        gdetails,
-        headers=header, tablefmt='psql'))
+        header = g.columns.str.upper()
+        print(tabulate(g, headers=header, tablefmt='psql'))
+        print('')
+
+
+
+
+    print('\n\n')
+    print('Links to PMM by engine, threads and rw:')
+
+    top = dfout.groupby(['engine', 'threads','rw']).head(1).reset_index()
+    bottom = dfout.groupby(['engine', 'threads','rw']).tail(1).reset_index()
+    window = pd.merge(top, bottom, how='inner', on=['engine', 'threads','rw']) \
+        [['starttime_x', 'endtime_y', 'start_x', 'end_y', 'engine']]
+    group_details = dfout.groupby(['engine', 'threads','rw'], sort=False)
+
+    for (i, d), (name, group) in zip(window.iterrows(), group_details):
+        print(f"{d['engine']} {name[1]} threads {name[2]}")
+        if base_url:
+            print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from="
+                  f"{int(d['start_x']) * 1000 - sec}&to={int(d['end_y']) * 1000 + 60 * sec}\n")
+        gcolumns = [c for c in group.columns.tolist() if c not in ['start', 'end', 'starttime', 'endtime']]
+        g = group.groupby(gcolumns, sort=False, as_index=False).count()
+
+        header = g.columns.str.upper()
+        print(tabulate(g, headers=header, tablefmt='psql'))
+        print('')
+
+
+
+
     print('\n\n')
     print('Links to PMM by engine showing all test in a single plot:')
 
@@ -173,22 +192,32 @@ def list_times(filename, gmt, base_url):
             outlist = get_times(fn, gmt)
     else:
         outlist = get_times(filename, gmt)
-    build_timewindow(outlist, base_url)
+    if base_url:
+        build_timewindow(outlist, base_url)
 
 
 def get_times(filename, gmt):
     out_list: List[Tuple[str, str, Union[str, Any], str, str, Union[str, Any], str]] = []
+    out = []
+    if gmt:
+        header = ('Engine','Partition','Compression','Threads','R/W','Start','End','Start UCT','End UCT')
+    else:
+        header = ('Engine','Partition','Compression','Threads','R/W','Start','End')
+
     for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
         if gmt:
             start_gmt = arrow.get(starttime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
             end_gmt = arrow.get(endtime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
-            print(f'{starttime} {endtime} ->  {start_gmt} {end_gmt} {engine} {partition} {compress} {threads} {rw}')
+            out.append((engine, partition, compress, threads, rw, starttime, endtime, start_gmt, end_gmt))
         else:
+            out.append((engine, partition, compress, threads, rw, starttime, endtime))
             print(f'{starttime} {endtime} {engine} {partition} {compress} {threads} {rw}')
 
         out_list.append((arrow.get(starttime, tzinfo=get_localzone()).format('X'),
                          arrow.get(endtime, tzinfo=get_localzone()).format('X'),
                          engine, partition, compress, threads, rw) )
+    print('Listing the benchmark tests and run times:\n')
+    print(tabulate(out, header, tablefmt='simple'))
     return out_list
 
 
