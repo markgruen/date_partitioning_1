@@ -28,6 +28,7 @@ TEST_ITERATIONS=3
 RUN_TIME=300
 WAIT_TIME=60
 OUTFILE="test_out_${ro}_${ENGINE}_${THREADS}"
+TEE="tee"
 
 while true ; do
     case "$1" in
@@ -38,7 +39,7 @@ while true ; do
         --test-iterations ) TEST_ITERATIONS="$2"; shift 2;;
         --run-time ) RUN_TIME="$2"; shift 2;;
         --wait-time ) WAIT_TIME="$2"; shift 2;;
-        --outfile|-o) OUTFILE="$2"; shift 2;;
+        --outfile|-o) OUTFILE="$2"; TEE="tee -a"; shift 2;;
         -- ) shift; break ;;
         * ) usage ;;
     esac
@@ -48,6 +49,8 @@ echo "# STARTUP PARAMETERS threads: $THREADS read_pct: $READ_PCT point_select_pc
 #exit 0
 
 # added to ease adding more app parameters
+write_pct=$(( 100-$READ_PCT ))
+read_pct=$READ_PCT
 
 
 if [ "$read_pct" -lt 0 -o "$read_pct" -gt 100 ]; then
@@ -61,14 +64,6 @@ else
     ro="rw"
 fi
 
-write_pct=$(( 100-$READ_PCT ))
-read_pct=$READ_PCT
-
-if [[ -z "$4" ]]; then
-    TEE="tee"
-else
-    TEE="tee -a"
-fi
 
 
 (
@@ -176,4 +171,4 @@ else
     echo "RESETTING BIG TO PARTITIONED"
     echo "rename table big to _big_nonpart, _big_part to big;" | ./use -vvv test
 fi
-) | $TEE $out_file
+) | $TEE $OUTFILE
