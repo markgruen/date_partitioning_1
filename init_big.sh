@@ -13,7 +13,8 @@ else
 fi
 }
 
-echo "drop table if exists big;
+echo "drop table if exists _big_part;
+drop table if exists big;
 CREATE TABLE big (
 id int(11) NOT NULL AUTO_INCREMENT,
 region varchar(20) DEFAULT NULL,
