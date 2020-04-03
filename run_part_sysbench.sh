@@ -11,7 +11,7 @@ function usage {
 }
 
 SHORT=ho:wP:
-LONG=help,threads:,read-pct:,engine:,point-select-pct:,test-iterations:,run-time:,wait-time:,outfile:port:,group-warmup-time:
+LONG=help,threads:,read-pct:,engine:,point-select-pct:,test-iterations:,run-time:,wait-time:,outfile:,port:,group-warmup-time:
 
 OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
 

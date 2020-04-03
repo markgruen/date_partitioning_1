@@ -4,12 +4,12 @@
 #
 
 function usage {
-   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE]" 1>&2
+   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE] [--port|-P=N" 1>&2
    exit 1
 }
 
-SHORT=ho:
-LONG=first-engine:,sleep-time:,outfile:
+SHORT=ho:P:
+LONG=first-engine:,sleep-time:,port:,outfile:
 
 OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
 
@@ -21,6 +21,7 @@ eval set -- "$OPTS"
 
 FIRST=innodb
 SLEEP=60
+PORT=5728
 FILE="testout_$(date +"%Y%m%d_%H:%M:%S")"
 
 while true ; do
@@ -28,47 +29,50 @@ while true ; do
         --first-engine ) FIRST="$2"; shift 2;;
         --sleep-time ) SLEEP="$2"; shift 2;;
         --outfile|-o ) FILE="$2"; shift 2;;
+        --port|-P ) PORT="$2"; shift 2;;
         -- ) shift; break ;;
         * ) usage ;;
     esac
 done
 
 echo "
-FIRST: $FIRST
-SLEEP: $SLEEP
-FILE: $FILE"
+# FIRST: $FIRST
+# SLEEP: $SLEEP
+# PORT: $PORT
+# FILE: $FILE"
 
 function innodb
 {
 echo "----------- INNODB --------------"
-./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --outfile "$FILE"
+echo ./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --engine innodb --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --engine innodb --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 60 --engine innodb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --engine innodb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --engine innodb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 }
 
 function tokudb
 {
 echo "----------- TOKUDB --------------"
-./run_part_sysbench.sh --threads 1 --read-pct 60 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 60 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 60 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 60 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --engine tokudb --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 }
 

@@ -1,4 +1,5 @@
-_PATH=/home/mgruen/sandboxes/msb_toku5_7_28
+WDIR=$(pwd)
+_PATH=$WDIR
 
 rm $_PATH/data//mysqlsandbox1-slow.log
 
