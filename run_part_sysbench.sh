@@ -5,7 +5,7 @@
 # Todo: add --warmup-time for the start of each test series 
 
 function usage {
-   echo "Usage: $0 [-P|--port=PORT] [--threads=THREADS] [--read_pct=READ_PCT] [--engine=ENGINE] [--point-select-pct=POINT_SELECT_PCT]
+   echo "Usage: $0 [-P|--port=PORT] [--threads=THREADS] [--read-pct=READ_PCT] [--engine=ENGINE] [--point-select-pct=POINT_SELECT_PCT]
    [--test-iterations=N] [--run-time=T] [--wait-time=W] [--group-warmup-time=WT] [-w] [--outfile|-o FILE]" 1>&2
    exit 1
 }
@@ -29,7 +29,7 @@ POINT_SELECT_PCT=0
 TEST_ITERATIONS=3
 RUN_TIME=300
 WAIT_TIME=60
-WARMUP_TIME=60
+WARMUP_TIME=180
 WARMUP=false
 OUTFILE="test_out_${ro}_${ENGINE}_${THREADS}"
 TEE="tee"
@@ -43,7 +43,14 @@ while true ; do
         --test-iterations ) TEST_ITERATIONS="$2"; shift 2;;
         --run-time ) RUN_TIME="$2"; shift 2;;
         --wait-time ) WAIT_TIME="$2"; shift 2;;
-        --group-warmup-time ) WARMUP_TIME="$2";WARMUP=true; shift 2;;
+        --group-warmup-time ) 
+            WARMUP_TIME="$2"
+            if [ $WARMUP_TIME -gt 0 ]; then 
+                WARMUP=true
+            else
+                WARMUP=false
+            fi
+            shift 2;;
         --port|-P ) PORT="$2"; shift 2;;
         --outfile|-o) OUTFILE="$2"; TEE="tee -a"; shift 2;;
         -w ) WARMUP=true; shift; break ;;
@@ -84,9 +91,7 @@ do
     echo "POINT_SELECT_PCT: $POINT_SELECT_PCT"
     echo "ENGINE: $ENGINE"
     echo "WARMUP: $WARMUP_TIME"
-    date '+START: %Y-%m-%d %H:%M:%S'
 
-    set x-
     if [ "$WARMUP" == true -a $i -eq 1 ]; then
         echo "Running RO warmup for $WARMUP_TIME sec"
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$WARMUP_TIME --report-interval=5 \
@@ -96,14 +101,15 @@ do
         --read_pct=100 run > /dev/null
         echo "Finished RO warmup "
     fi
-    set x+
+
+    date '+START: %Y-%m-%d %H:%M:%S'
 
     sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$RUN_TIME --report-interval=5 \
     --end-date='2019-11-01 00:00:00' \
     --threads=$THREADS \
     --point_select_id=$POINT_SELECT_PCT \
     --histogram=on \
-    --read_pct=$read_pct $WARM run
+    --read_pct=$read_pct run
 
     date '+END: %Y-%m-%d %H:%M:%S'
     sleep $WAIT_TIME
@@ -122,9 +128,8 @@ do
     echo "POINT_SELECT_PCT: $POINT_SELECT_PCT"
     echo "ENGINE: $ENGINE"
     echo "WARMUP: $WARMUP_TIME"
-    date '+START: %Y-%m-%d %H:%M:%S'
 
-    if [ "$WARMUP" -eq 1 -a $i -eq 1 ]; then
+    if [ "$WARMUP" == true -a $i -eq 1 ]; then
         echo "Running RO warmup for $WARMUP_TIME sec"
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$WARMUP_TIME --report-interval=5 \
         --end-date='2019-11-01 00:00:00' \
@@ -134,12 +139,14 @@ do
         echo "Finished RO warmup "
     fi
 
+    date '+START: %Y-%m-%d %H:%M:%S'
+
     sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$RUN_TIME --report-interval=5 \
     --end-date='2019-11-01 00:00:00' \
     --threads=$THREADS \
     --point_select_id=$POINT_SELECT_PCT \
     --histogram=on \
-    --read_pct=$read_pct $WARM run
+    --read_pct=$read_pct run
 
     date '+END: %Y-%m-%d %H:%M:%S'
     sleep $WAIT_TIME
@@ -159,9 +166,8 @@ if [[ "$ENGINE" == "innodb" ]]; then
         echo "POINT_SELECT_PCT: $POINT_SELECT_PCT"
         echo "ENGINE: $ENGINE"
         echo "WARMUP: $WARMUP_TIME"
-        date '+START: %Y-%m-%d %H:%M:%S'
 
-        if [ "$WARMUP" -eq 1 -a $i -eq 1 ]; then
+        if [ "$WARMUP" == true -a $i -eq 1 ]; then
             echo "Running RO warmup for $WARMUP_TIME sec"
             sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$WARMUP_TIME --report-interval=5 \
             --end-date='2019-11-01 00:00:00' \
@@ -171,12 +177,14 @@ if [[ "$ENGINE" == "innodb" ]]; then
             echo "Finished RO warmup "
         fi
 
+        date '+START: %Y-%m-%d %H:%M:%S'
+
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$RUN_TIME --report-interval=5 \
         --end-date='2019-11-01 00:00:00' \
         --threads=$THREADS \
         --point_select_id=$POINT_SELECT_PCT \
         --histogram=on \
-        --read_pct=$read_pct $WARM run
+        --read_pct=$read_pct run
 
         date '+END: %Y-%m-%d %H:%M:%S'
         sleep $WAIT_TIME
@@ -195,9 +203,8 @@ if [[ "$ENGINE" == "innodb" ]]; then
         echo "POINT_SELECT_PCT: $POINT_SELECT_PCT"
         echo "ENGINE: $ENGINE"
         echo "WARMUP: $WARMUP_TIME"
-        date '+START: %Y-%m-%d %H:%M:%S'
 
-        if [ "$WARMUP" -eq 1 -a $i -eq 1 ]; then
+        if [ "$WARMUP" == true -a $i -eq 1 ]; then
             echo "Running RO warmup for $WARMUP_TIME sec"
             sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$WARMUP_TIME --report-interval=5 \
             --end-date='2019-11-01 00:00:00' \
@@ -207,12 +214,14 @@ if [[ "$ENGINE" == "innodb" ]]; then
             echo "Finished RO warmup "
         fi
 
+        date '+START: %Y-%m-%d %H:%M:%S'
+
         sysbench mg_part_workload.lua --mysql-ssl=off --mysql-user=msandbox --mysql-password=msandbox --mysql-port=$PORT --mysql-host=127.0.0.1 --mysql-db=test --time=$RUN_TIME --report-interval=5 \
         --end-date='2019-11-01 00:00:00' \
         --threads=$THREADS \
         --point_select_id=$POINT_SELECT_PCT \
         --histogram=on \
-        --read_pct=$read_pct $WARM run
+        --read_pct=$read_pct run
 
         date '+END: %Y-%m-%d %H:%M:%S'
         sleep $WAIT_TIME
