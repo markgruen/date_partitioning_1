@@ -4,12 +4,12 @@
 #
 
 function usage {
-   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE] [--port|-P=N" 1>&2
+   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE] [--port|-P=N] [--group-warmup-time=T]" 1>&2
    exit 1
 }
 
 SHORT=ho:P:
-LONG=first-engine:,sleep-time:,port:,outfile:
+LONG=first-engine:,sleep-time:,port:,outfile:,group-warmup-time:
 
 OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
 
@@ -23,6 +23,7 @@ FIRST=innodb
 SLEEP=60
 PORT=5728
 FILE="testout_$(date +"%Y%m%d_%H:%M:%S")"
+WARMUP_TIME=180
 
 while true ; do
     case "$1" in
@@ -30,6 +31,7 @@ while true ; do
         --sleep-time ) SLEEP="$2"; shift 2;;
         --outfile|-o ) FILE="$2"; shift 2;;
         --port|-P ) PORT="$2"; shift 2;;
+        --group-warmup-time ) WARMUP_TIME="$2"; shift 2;;
         -- ) shift; break ;;
         * ) usage ;;
     esac
@@ -49,13 +51,13 @@ echo ./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PO
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 1 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 3 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 3 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 }
 
@@ -66,13 +68,13 @@ echo "----------- TOKUDB --------------"
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 1 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 3 --read-pct 60 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 ./run_part_sysbench.sh --threads 3 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT --outfile "$FILE"
 sleep "$SLEEP"
 }
 
