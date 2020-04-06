@@ -69,14 +69,16 @@ def extract(file_names, csv):
                           '.*avg: *(\d\d*\.\d\d*)|'
                           '.*max: *(\d\d*\.\d\d*)|'
                           '.*95th percentile: *([0-9][0-9]*\.\d\d*)$|'
-                          '^READ/WRITE: (\d\d*):(\d\d*)|'
+                          '^READ\/WRITE: (\d\d*):(\d\d*)|'
                           '^PARTITIONED: (\w\w*)|'
                           '^COMPRESSED: (\w\w*)|'
+                          '^POINT_SELECT_PCT: (\d\d*)|'
                           '^ENGINE: (\w\w*)')
     if sysbench_version == '1.0':
         exp = exp_v10
 
-    filename_index = 27
+    N = 29
+    filename_index = 28
     header1 = ('Queries', 'Transactions', 'General Statisics', 'Response Time', 'Run Data')
     header = ('Threads',
               'reads', 'writes', 'other', 'total',
@@ -86,7 +88,7 @@ def extract(file_names, csv):
               'ignored_errs', 'ignored_errs/s',
               'reconnects', 'reconnects/s',
               'tot_time', '#events', 'tot_time_for_events', 'min', 'avg', 'max', '95_%',
-              'read%','write%','partitioned','compressed','engine','filename')
+              'read%','write%','partitioned','compressed','point_select%','engine','filename')
     #print('File: {}'.format(file_name))
     print('')
     if not csv:
@@ -99,11 +101,13 @@ def extract(file_names, csv):
               '{:12s} {:14} ' #ignored errors
               '{:10s} {:12s} ' #reconnects
               '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
-              '{:5s} {:6s} {:12s} {:10s} {:6s} '
+              '{:5s} {:6s} {:12s} {:10s} '
+              '{:13s} ' #point select
+              '{:6s} ' #engine
               '{}'.format(*header))
     else:
-        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
-    values = [None]*29
+        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
+    values = [None] * N
     for file_name in file_names:
         values[filename_index] = file_name
         with open(file_name, 'r') as f:
@@ -126,7 +130,7 @@ def extract(file_names, csv):
                         i = list(map(bool, m)).index(True)
                         if i == 0:
                             #print(line)
-                            values = [None]*29
+                            values = [None] * N
                             values[0] = m[0]
                             values[filename_index] = file_name
                         else:
@@ -139,7 +143,8 @@ def extract(file_names, csv):
                         #print('m:      {}'.format(m))
                         #if len([e for e in values if e is not None]) == 22:
                         #print(f'LEN: {len([e for e in values if e is not None])}')
-                        if len([e for e in values if e is not None]) == 18+5:
+                        #if len([e for e in values if e is not None]) == 18+5:
+                        if len([e for e in values if e is not None]) == 18 + 5 + 1:
                             #print(f'LEN VALUES {len(values)}')
                             if not csv:
                                 print('{:7s} '
@@ -150,10 +155,12 @@ def extract(file_names, csv):
                                       '{:12s} {:14} ' #ignored errors
                                       '{:10s} {:12s} ' #reconnects
                                       '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
-                                      '{:5s} {:6s} {:12s} {:10s} {:6s} '
+                                      '{:5s} {:6s} {:12s} {:10s} '
+                                      '{:13s} ' #point select
+                                      '{:6s} ' # engine
                                       '{}'.format(*['' if e is None else e for e in values]))
                             else:
-                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
+                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
                                       .format(*['' if e is None else e for e in values]))
                         else:
                             if debug:
