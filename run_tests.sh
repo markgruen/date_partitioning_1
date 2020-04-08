@@ -4,11 +4,11 @@
 #
 
 function usage {
-   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE] [--port|-P=N] [--group-warmup-time=T]" 1>&2
+   echo "Usage: $0 [--first-engine=ENGINE] [--sleep-time=SLEEP] [--outfile|-o FILE] [--port|-P=N] [--group-warmup-time=T] [-z]" 1>&2
    exit 1
 }
 
-SHORT=ho:P:
+SHORT=ho:P:z
 LONG=first-engine:,sleep-time:,port:,outfile:,group-warmup-time:
 
 OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
@@ -24,6 +24,7 @@ SLEEP=60
 PORT=5728
 FILE="testout_$(date +"%Y%m%d_%H:%M:%S")"
 WARMUP_TIME=180
+COMP=false
 
 while true ; do
     case "$1" in
@@ -32,10 +33,17 @@ while true ; do
         --outfile|-o ) FILE="$2"; shift 2;;
         --port|-P ) PORT="$2"; shift 2;;
         --group-warmup-time ) WARMUP_TIME="$2"; shift 2;;
+        -z ) COMP=true; shift;;
         -- ) shift; break ;;
         * ) usage ;;
     esac
 done
+
+if [ "$COMP" == true ]; then
+    Z="-z"
+else
+    Z=""
+fi
 
 echo "
 # FIRST: $FIRST
@@ -46,35 +54,34 @@ echo "
 function innodb
 {
 echo "----------- INNODB --------------"
-echo ./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
-./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 60 --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 60 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 60 --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100  --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine innodb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
 }
 
 function tokudb
 {
 echo "----------- TOKUDB --------------"
-./run_part_sysbench.sh --threads 1 --read-pct 60 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 60 --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 1 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 60 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 60 --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
-./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT --outfile "$FILE"
+./run_part_sysbench.sh --threads 3 --read-pct 100 --point-select-pct=100 --group-warmup-time=$WARMUP_TIME --engine tokudb --port=$PORT "$Z" --outfile "$FILE"
 sleep "$SLEEP"
 }
 

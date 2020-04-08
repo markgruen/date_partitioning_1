@@ -10,7 +10,19 @@ function usage {
    exit 1
 }
 
-SHORT=ho:wP:
+function do_compress {
+# compress all but the current log
+for f in $(ls data/mysqlsandbox1-slow_log.0*[0-9] | head -n -2)
+do
+sleep 10
+echo "# compressing $f"
+echo "set global slow_query_log=0" | ./use 
+gzip "$f"
+echo "set global slow_query_log=1;set global max_slowlog_size=500*1024*1024" | ./use 
+done
+}
+
+SHORT=ho:wP:z
 LONG=help,threads:,read-pct:,engine:,point-select-pct:,test-iterations:,run-time:,wait-time:,outfile:,port:,group-warmup-time:
 
 OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
@@ -33,6 +45,7 @@ WARMUP_TIME=180
 WARMUP=false
 OUTFILE="test_out_${ro}_${ENGINE}_${THREADS}"
 TEE="tee"
+COMP=false
 
 while true ; do
     case "$1" in
@@ -53,6 +66,7 @@ while true ; do
             shift 2;;
         --port|-P ) PORT="$2"; shift 2;;
         --outfile|-o) OUTFILE="$2"; TEE="tee -a"; shift 2;;
+        -z) COMP=true; shift 1;;
         -w ) WARMUP=true; shift; break ;;
         -- ) shift; break ;;
         * ) usage ;;
@@ -112,6 +126,9 @@ do
     --read_pct=$read_pct run
 
     date '+END: %Y-%m-%d %H:%M:%S'
+    if [ "$COMP" == true ]; then
+        do_compress
+    fi
     sleep $WAIT_TIME
 done
 
@@ -149,6 +166,9 @@ do
     --read_pct=$read_pct run
 
     date '+END: %Y-%m-%d %H:%M:%S'
+    if [ "$COMP" == true ]; then
+        do_compress
+    fi
     sleep $WAIT_TIME
 done
 
@@ -187,6 +207,9 @@ if [[ "$ENGINE" == "innodb" ]]; then
         --read_pct=$read_pct run
 
         date '+END: %Y-%m-%d %H:%M:%S'
+        if [ "$COMP" == true ]; then
+            do_compress
+        fi
         sleep $WAIT_TIME
     done
 
@@ -224,6 +247,9 @@ if [[ "$ENGINE" == "innodb" ]]; then
         --read_pct=$read_pct run
 
         date '+END: %Y-%m-%d %H:%M:%S'
+        if [ "$COMP" == true ]; then
+            do_compress
+        fi
         sleep $WAIT_TIME
     done
     echo "RESETTING BIG TO PARTITIONED"
