@@ -23,7 +23,7 @@ FIRST=innodb
 SLEEP=60
 PORT=5728
 FILE="testout_$(date +"%Y%m%d_%H:%M:%S")"
-WARMUP_TIME=180
+WARMUP_TIME=0
 COMP=false
 
 while true ; do
