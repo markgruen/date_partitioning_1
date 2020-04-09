@@ -12,13 +12,18 @@ function usage {
 
 function do_compress {
 # compress all but the current log
+# note ran into issues with pmm-client doing auto slowlog rotation
+# disabled using:
+# pmm-admin rm mysql:queries mysqlsandbox1-5.7.29-32.server
+# pmm-admin add mysql:queries --slow-log-rotation=false --user=pmm --password=pass --port 5729 --host 127.0.0.1  mysqlsandbox1-5.7.29-32.server
+# manually rotating logs because of space constraints on sandbox VM
+
 for f in $(ls data/mysqlsandbox1-slow_log.0*[0-9] | head -n -2)
 do
-sleep 10
-echo "# compressing $f"
-echo "set global slow_query_log=0" | ./use 
-gzip "$f"
-echo "set global slow_query_log=1;set global max_slowlog_size=500*1024*1024" | ./use 
+    echo "# compressing $f"
+    echo "set global slow_query_log=0;set global max_slowlog_size=500*1024*1024;" | ./use 
+    gzip "$f"
+    echo "set global max_slowlog_size=500*1024*1024;set global slow_query_log=1;" | ./use 
 done
 }
 
