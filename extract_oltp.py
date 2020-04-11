@@ -33,6 +33,7 @@ def extract(file_names, csv):
     sysbench_version = '1.0'
     debug = False
 
+    exp_start = re.compile(r'^###########')
     exp_v05 = re.compile( '^Number of threads: (\d\d*)|'
                           'read: *(\d\d*)|'
                           'write: *(\d\d*)|'
@@ -69,14 +70,18 @@ def extract(file_names, csv):
                           '.*avg: *(\d\d*\.\d\d*)|'
                           '.*max: *(\d\d*\.\d\d*)|'
                           '.*95th percentile: *([0-9][0-9]*\.\d\d*)$|'
-                          '^READ/WRITE: (\d\d*):(\d\d*)|'
+                          '^READ\/WRITE: (\d\d*):(\d\d*)|'
                           '^PARTITIONED: (\w\w*)|'
                           '^COMPRESSED: (\w\w*)|'
-                          '^ENGINE: (\w\w*)')
+                          '^POINT_SELECT_PCT: (\d\d*)|'
+                          '^ENGINE: (\w\w*)|'
+                          '^START: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})|'
+                          '^END: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
     if sysbench_version == '1.0':
         exp = exp_v10
 
-    filename_index = 27
+    N = 29 + 2
+    filename_index = 28 + 2
     header1 = ('Queries', 'Transactions', 'General Statisics', 'Response Time', 'Run Data')
     header = ('Threads',
               'reads', 'writes', 'other', 'total',
@@ -86,7 +91,7 @@ def extract(file_names, csv):
               'ignored_errs', 'ignored_errs/s',
               'reconnects', 'reconnects/s',
               'tot_time', '#events', 'tot_time_for_events', 'min', 'avg', 'max', '95_%',
-              'read%','write%','partitioned','compressed','engine','filename')
+              'read%','write%','partitioned','compressed','point_select%','engine','start_date','end_date','filename')
     #print('File: {}'.format(file_name))
     print('')
     if not csv:
@@ -99,11 +104,14 @@ def extract(file_names, csv):
               '{:12s} {:14} ' #ignored errors
               '{:10s} {:12s} ' #reconnects
               '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
-              '{:5s} {:6s} {:12s} {:10s} {:6s} '
+              '{:5s} {:6s} {:12s} {:10s} '
+              '{:13s} ' #point select
+              '{:6s} ' #engine
+              '{:19s} {:19s} ' # start, end
               '{}'.format(*header))
     else:
-        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
-    values = [None]*29
+        print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(*header))
+    values = [None] * N
     for file_name in file_names:
         values[filename_index] = file_name
         with open(file_name, 'r') as f:
@@ -111,10 +119,6 @@ def extract(file_names, csv):
                 #print(l,line)
                 try:
                     #m = re.search('[1-9][0-9\.]*Mb\/sec', line)
-                    """
-                    if l in [23,24]:
-                        print('SKIP')
-                        pass"""
                     #m = exp.search(line, re.M).groups()
                     m = exp.match(line).groups()
                     #print(m)
@@ -124,22 +128,27 @@ def extract(file_names, csv):
                         #print "MATCH:"
                         #print line
                         i = list(map(bool, m)).index(True)
+                        """
                         if i == 0:
                             #print(line)
-                            values = [None]*29
+                            values = [None] * N
                             values[0] = m[0]
                             values[filename_index] = file_name
                         else:
                             #values[i] = m[i]
                             for j in i_m:
                                 values[j] = m[j]
+                        """
+                        for j in i_m:
+                            values[j] = m[j]
 
                         #print(line)
                         #print('values: {}'.format(values))
                         #print('m:      {}'.format(m))
                         #if len([e for e in values if e is not None]) == 22:
                         #print(f'LEN: {len([e for e in values if e is not None])}')
-                        if len([e for e in values if e is not None]) == 18+5:
+                        #if len([e for e in values if e is not None]) == 18+5:
+                        if len([e for e in values if e is not None]) == 18 + 5 + 1 + 2:
                             #print(f'LEN VALUES {len(values)}')
                             if not csv:
                                 print('{:7s} '
@@ -150,10 +159,13 @@ def extract(file_names, csv):
                                       '{:12s} {:14} ' #ignored errors
                                       '{:10s} {:12s} ' #reconnects
                                       '{:8s} {:7s} {:19s} {:7s} {:7s} {:7s} {:7s} '
-                                      '{:5s} {:6s} {:12s} {:10s} {:6s} '
+                                      '{:5s} {:6s} {:12s} {:10s} '
+                                      '{:13s} ' #point select
+                                      '{:6s} ' # engine
+                                      '{:19s} {:19s} ' # start, end
                                       '{}'.format(*['' if e is None else e for e in values]))
                             else:
-                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
+                                print('{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'
                                       .format(*['' if e is None else e for e in values]))
                         else:
                             if debug:
@@ -168,6 +180,11 @@ def extract(file_names, csv):
                         #for s in m:
                         #    print('STRING: {}'.format(s))
                 except (TypeError, AttributeError) as e:
+                    if exp_start.match(line) is not None:
+                        """ reset values"""
+                        values = [None] * N
+                        #values[0] = m[0]
+                        values[filename_index] = file_name
                     next
         if debug: print('DEBUG: {}'.format(values))
 
