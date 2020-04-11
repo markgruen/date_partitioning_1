@@ -38,13 +38,14 @@ def get_sysbench_chunk(filename):
     part, comp, threads, engine, rw, starttime, endtime = '', '', '', '', '', '', ''
     start = True
     pbreak = re.compile(r'^########### ')
-    ppartition = re.compile(r'PARTITIONED: ')
-    pcompress = re.compile(r'COMPRESSED: ')
-    pengine = re.compile(r'ENGINE: ')
-    pthreads = re.compile(r'THREAD: ')
-    pstart = re.compile(r'START: ')
-    pend = re.compile(r'END: ')
-    prw = re.compile(r'READ/WRITE: ')
+    ppartition = re.compile(r'^PARTITIONED: ')
+    pcompress = re.compile(r'^COMPRESSED: ')
+    pengine = re.compile(r'^ENGINE: ')
+    ppointselect = re.compile(r'^POINT_SELECT_PCT: ')
+    pthreads = re.compile(r'^THREAD: ')
+    pstart = re.compile(r'^START: ')
+    pend = re.compile(r'^END: ')
+    prw = re.compile(r'^READ/WRITE: ')
     with open(filename, 'r') as file:
         for n,line in enumerate(file):
             if pbreak.match(line):
@@ -52,7 +53,7 @@ def get_sysbench_chunk(filename):
                     start = False
                     chunk.append(line.strip())
                 else:
-                    yield chunk, part, comp, threads, engine, rw, starttime, endtime
+                    yield chunk, part, comp, pselect, threads, engine, rw, starttime, endtime
                     chunk = []
                     chunk.append(line.strip())
             else:
@@ -63,6 +64,8 @@ def get_sysbench_chunk(filename):
                 if pcompress.match(line):
                     comp = line.split(':')[1].strip()
                     comp = 'compress' if comp == 'YES' else ''
+                if ppointselect.match(line):
+                    pselect = line.split(':')[1].strip()
                 if pthreads.match(line):
                     threads = line.split(':')[1].strip()
                 if pengine.match(line):
@@ -75,11 +78,11 @@ def get_sysbench_chunk(filename):
                     rw = line.split(':')[1].strip()
                     rw = 'ro' if rw=='100' else 'rw'
         else:
-            yield chunk, part, comp, threads, engine, rw, starttime, endtime
+            yield chunk, part, comp, pselect, threads, engine, rw, starttime, endtime
 
 
 def split_sysbench_output(filename, thedate):
-    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
+    for i, (chunk, partition, compress, pselect, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
         #partition = 'partition' if part == 'YES' else 'non-partition'
         #compress = '_compress' if comp == 'compress' else ''
         compress = '_compress' if compress == 'compress' else ''
@@ -90,7 +93,7 @@ def split_sysbench_output(filename, thedate):
 
 
 def build_timewindow(outlist, base_url):
-    columns = ['start', 'end', 'engine', 'partition', 'compress', 'threads', 'rw']
+    columns = ['start', 'end', 'engine', 'partition', 'compress', 'pselect%', 'threads', 'rw']
     dfout = pd.DataFrame(outlist, columns=columns)
     #print(columns)
     #print(outlist)
@@ -108,11 +111,21 @@ def build_timewindow(outlist, base_url):
 
     print('\n\n')
     print('Links to PMM for each test')
+    "http://192.168.101.42/graph/d/7Xk9QMNmk/mysql-tokudb-metrics?"
     for i, d in window.iterrows():
         print(f"{d['engine']} {d['threads']} {d['partition']} {d['compress']} {d['rw']}")
         if base_url:
-            print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from={int(d['start_x'])*1000-sec}&to={int(d['end_y'])*1000+15*sec}")
-
+            if d['engine'] == 'innodb':
+                print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from="
+                      f"{int(d['start_x']) * 1000 - sec}&to={int(d['end_y']) * 1000 + 60 * sec}\n")
+            elif d['engine'] == 'tokudb':
+                print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from="
+                      f"{int(d['start_x']) * 1000 - sec}&to={int(d['end_y']) * 1000 + 60 * sec}\n")
+                print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-tokudb-metrics?from="
+                      f"{int(d['start_x'])*1000-sec}&to={int(d['end_y'])*1000+15*sec}")
+            else:
+                print(f"    http://{base_url}/graph/d/MQWgroiiz/mysql-overview?from="
+                      f"{int(d['start_x']) * 1000 - sec}&to={int(d['end_y']) * 1000 + 60 * sec}\n")
 
     print('\n\n')
     print('Links to PMM by engine and threads:')
@@ -185,7 +198,7 @@ def build_timewindow(outlist, base_url):
     return window
 
 
-def list_times(filename, gmt, base_url):
+def list_times(filename, gmt, base_url=None):
     """ here we can generate the url links to PMM """
     if isinstance(filename, list):
         for fn in filename:
@@ -200,22 +213,22 @@ def get_times(filename, gmt):
     out_list: List[Tuple[str, str, Union[str, Any], str, str, Union[str, Any], str]] = []
     out = []
     if gmt:
-        header = ('Engine','Partition','Compression','Threads','R/W','Start','End','Start UCT','End UCT')
+        header = ('Engine','Partition','Compression','PSelect%', 'Threads','R/W','Start','End','Start UCT','End UCT')
     else:
-        header = ('Engine','Partition','Compression','Threads','R/W','Start','End')
+        header = ('Engine','Partition','Compression','PSelect%', 'Threads','R/W','Start','End')
 
-    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
+    for i, (chunk, partition, compress, pselect, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
         if gmt:
             start_gmt = arrow.get(starttime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
             end_gmt = arrow.get(endtime, tzinfo=tz.tzlocal()).to('utc').format('YYYY-MM-DD HH:mm:ss')
-            out.append((engine, partition, compress, threads, rw, starttime, endtime, start_gmt, end_gmt))
+            out.append((engine, partition, compress, pselect, threads, rw, starttime, endtime, start_gmt, end_gmt))
         else:
             out.append((engine, partition, compress, threads, rw, starttime, endtime))
-            print(f'{starttime} {endtime} {engine} {partition} {compress} {threads} {rw}')
+            print(f'{starttime} {endtime} {engine} {pselect} {partition} {compress} {threads} {rw}')
 
         out_list.append((arrow.get(starttime, tzinfo=get_localzone()).format('X'),
                          arrow.get(endtime, tzinfo=get_localzone()).format('X'),
-                         engine, partition, compress, threads, rw) )
+                         engine, partition, compress, pselect, threads, rw) )
     print('Listing the benchmark tests and run times:\n')
     print(tabulate(out, header, tablefmt='simple'))
     return out_list
@@ -226,7 +239,7 @@ def create_slowreport(filename, thedate, gmt, logfile):
 
     d = [None, None]
 
-    for i, (chunk, partition, compress, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
+    for i, (chunk, partition, compress, pselect, threads, engine, rw, starttime, endtime) in enumerate(get_sysbench_chunk(filename)):
 
         #slow_2020-02-04_19-49-06_tokudb_ro_3_03
         #tokudb_ro_3_slow_non_partition_5
@@ -250,6 +263,21 @@ def create_slowreport(filename, thedate, gmt, logfile):
                         _out=out_file)
 
 
+def run_date(filenames):
+    matched = []
+    try:
+        for filename in filenames:
+            m = re.match(r'.*(\d\d\d\d\d\d\d\d.\d\d.\d\d.\d\d)', filename)
+            matched.append(m.group(1))
+    except AttributeError:
+        return arrow.now().format('YYYYMMDD_HH-mm-ss')
+
+    if len(set(matched)) == 1:
+        return arrow.get(matched[0], 'YYYYMMDD_HH:mm:ss').format('YYYYMMDD_HH-mm-ss')
+    else:
+        return arrow.now().format('YYYYMMDD_HH-mm-ss')
+
+
 def main(filenames, thedate, gmt, logfile):
     for filename in filenames:
         print(f'Listing times if benchamrk runs in file {filename}')
@@ -265,11 +293,12 @@ def main(filenames, thedate, gmt, logfile):
 
 
 if __name__ == '__main__':
+    """add function to check all files for a date and use that or use the current date"""
     args = docopt(__doc__, version=_version)
-    thedate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     print(args)
+    thedate = run_date(args['<benchmark_outfiles>'])
     #sys.exit(0)
     if args['--list-times']:
         list_times(args['<benchmark_outfiles>'], args['--gmt'], args['--gen-url'])
     else:
-        main(args['<file>'], thedate, args['--gmt'], args['--slowlogfile'])
+        main(args['<benchmark_outfiles>'], thedate, args['--gmt'], args['--slowlogfile'])
